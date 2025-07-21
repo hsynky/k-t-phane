@@ -7,7 +7,7 @@ import json
 
 # Excel dosyası yollarını tanımla
 KUTUPHANE_DOSYASI = "kutuphane_tablosu.xlsx"
-ODUNC_DOSYASI = "odunc_verilen_kitaplar.xlsx"
+ODUNC_DOSYASI = "odunc_verilen_kitaplar.xlsx" # Bu dosya artık kullanılmıyor, tüm veriler KUTUPHANE_DOSYASI içinde.
 AYARLAR_DOSYASI = "app_settings.json" # Uygulama ayarları dosyası
 
 # --- Tema Renkleri ve Boyutları (Global değişkenler olarak tanımlandı) ---
@@ -124,32 +124,43 @@ MENU_GENISLIGI = _ilk_ayarlar["MENU_GENISLIGI"]
 def kutuphane_verisi_yukle():
     """
     Kütüphane Excel dosyasını yükler. Eğer dosya yoksa, boş bir DataFrame ile oluşturur.
+    Yeni sütunlar: "Ödünç Alan", "Teslim Tarihi"
     """
+    gerekli_sutunlar = ["ID", "Kitap Adı", "Yazar", "Sayfa Sayısı", "Basım Markası", "Kayıt Tarihi", "durumu", "Ödünç Alan", "Teslim Tarihi"]
+    
     if not os.path.exists(KUTUPHANE_DOSYASI):
-        df_kutuphane = pd.DataFrame(columns=["ID", "Kitap Adı", "Yazar", "Sayfa Sayısı", "Basım Markası", "Kayıt Tarihi", "durumu"])
+        df = pd.DataFrame(columns=gerekli_sutunlar)
         try:
-            df_kutuphane.to_excel(KUTUPHANE_DOSYASI, index=False)
+            df.to_excel(KUTUPHANE_DOSYASI, index=False)
             print(f"'{KUTUPHANE_DOSYASI}' dosyası oluşturuldu.")
         except Exception as e:
             messagebox.showerror("Hata", f"Excel dosyası oluşturulurken bir hata oluştu: {e}")
             return pd.DataFrame()
     
     try:
-        df_kutuphane = pd.read_excel(KUTUPHANE_DOSYASI)
-        if 'ID' not in df_kutuphane.columns or df_kutuphane['ID'].isnull().all():
-            df_kutuphane['ID'] = range(1, len(df_kutuphane) + 1)
-            df_kutuphane.to_excel(KUTUPHANE_DOSYASI, index=False)
-        return df_kutuphane
+        df = pd.read_excel(KUTUPHANE_DOSYASI)
+        
+        # Eksik sütunları kontrol et ve ekle
+        for sutun in gerekli_sutunlar:
+            if sutun not in df.columns:
+                df[sutun] = "" # Varsayılan boş değer
+        
+        # ID sütunu yoksa veya boşsa yeniden oluştur
+        if 'ID' not in df.columns or df['ID'].isnull().all():
+            df['ID'] = range(1, len(df) + 1)
+            df.to_excel(KUTUPHANE_DOSYASI, index=False) # ID'yi güncelledikten sonra kaydet
+            
+        return df
     except Exception as e:
         messagebox.showerror("Hata", f"'{KUTUPHANE_DOSYASI}' okunurken bir hata oluştu: {e}\nDosya bozuk olabilir veya açık olabilir.")
-        return pd.DataFrame()
+        return pd.DataFrame(columns=gerekli_sutunlar) # Hata durumunda boş DataFrame döndür
 
-def kutuphane_verisi_kaydet(df_kutuphane):
+def kutuphane_verisi_kaydet(df):
     """
     Kütüphane DataFrame'ini Excel dosyasına kaydeder.
     """
     try:
-        df_kutuphane.to_excel(KUTUPHANE_DOSYASI, index=False)
+        df.to_excel(KUTUPHANE_DOSYASI, index=False)
         return True
     except Exception as e:
         messagebox.showerror("Hata", f"Excel dosyasına kaydedilirken bir hata oluştu: {e}\nDosya açık olabilir veya yazma izni olmayabilir.")
@@ -276,7 +287,7 @@ def ana_ekran_penceresi_ac():
         ana_icerik_cercevesi.config(bg=ARKA_PLAN_KOYU_GRI)
 
         # Menü öğesi butonlarını güncelle
-        for oge in [menu_oge1, menu_oge2, menu_oge3, menu_oge4]:
+        for oge in [menu_oge1, menu_oge2, menu_oge3, menu_oge4, menu_oge5]: # menu_oge5 eklendi
             oge.config(bg=ARKA_PLAN_KOYU_GRI, fg=YAZI_RENGI_BEYAZ, activebackground=BUTON_AKTIF_ARKA_PLAN, activeforeground=YAZI_RENGI_BEYAZ)
 
         # Menü açıkken genişliğini güncelle, kapalıysa 0 tut
@@ -331,7 +342,7 @@ def ana_ekran_penceresi_ac():
         agac_cercevesi = tk.Frame(ust_cerceve, bg=ARKA_PLAN_KOYU_GRI)
         agac_cercevesi.pack(fill="both", expand=True, padx=20, pady=10)
 
-        sutunlar = ("ID", "Kitap Adı", "Yazar", "Sayfa Sayısı", "Basım Markası", "Kayıt Tarihi", "Durumu")
+        sutunlar = ("ID", "Kitap Adı", "Yazar", "Sayfa Sayısı", "Basım Markası", "Kayıt Tarihi", "Durumu", "Ödünç Alan", "Teslim Tarihi")
         agac_gorunumu = ttk.Treeview(agac_cercevesi, columns=sutunlar, show="headings")
 
         for sutun in sutunlar:
@@ -339,17 +350,23 @@ def ana_ekran_penceresi_ac():
             agac_gorunumu.column(sutun, width=100, anchor="w")
 
         agac_gorunumu.column("ID", width=50, anchor="center")
-        agac_gorunumu.column("Kitap Adı", width=200)
-        agac_gorunumu.column("Yazar", width=150)
+        agac_gorunumu.column("Kitap Adı", width=120) # Genişlik ayarlandı
+        agac_gorunumu.column("Yazar", width=100) # Genişlik ayarlandı
         agac_gorunumu.column("Sayfa Sayısı", width=80, anchor="center")
-        agac_gorunumu.column("Basım Markası", width=120)
+        agac_gorunumu.column("Basım Markası", width=100)
         agac_gorunumu.column("Kayıt Tarihi", width=100, anchor="center")
         agac_gorunumu.column("Durumu", width=80, anchor="center")
+        agac_gorunumu.column("Ödünç Alan", width=120)
+        agac_gorunumu.column("Teslim Tarihi", width=100, anchor="center")
 
         df_kutuphane_verisi = kutuphane_verisi_yukle()
         if not df_kutuphane_verisi.empty:
             for index, satir in df_kutuphane_verisi.iterrows():
-                agac_gorunumu.insert("", "end", values=(satir["ID"], satir["Kitap Adı"], satir["Yazar"], satir["Sayfa Sayısı"], satir["Basım Markası"], satir["Kayıt Tarihi"], satir["durumu"]))
+                agac_gorunumu.insert("", "end", values=(
+                    satir["ID"], satir["Kitap Adı"], satir["Yazar"], satir["Sayfa Sayısı"], 
+                    satir["Basım Markası"], satir["Kayıt Tarihi"], satir["durumu"],
+                    satir.get("Ödünç Alan", ""), satir.get("Teslim Tarihi", "") # Yeni sütunları güvenli al
+                ))
         else:
             tk.Label(agac_cercevesi, text="Kütüphanede henüz kitap bulunmamaktadır.", bg=ARKA_PLAN_KOYU_GRI, fg=YAZI_RENGI_BEYAZ).pack(pady=20) 
 
@@ -369,7 +386,7 @@ def ana_ekran_penceresi_ac():
         agac_cercevesi = tk.Frame(ust_cerceve, bg=ARKA_PLAN_KOYU_GRI)
         agac_cercevesi.pack(fill="both", expand=True, padx=20, pady=10)
 
-        sutunlar = ("ID", "Kitap Adı", "Yazar", "Sayfa Sayısı", "Basım Markası", "Kayıt Tarihi", "Durumu")
+        sutunlar = ("ID", "Kitap Adı", "Yazar", "Sayfa Sayısı", "Basım Markası", "Kayıt Tarihi", "Durumu", "Ödünç Alan", "Teslim Tarihi")
         agac_gorunumu = ttk.Treeview(agac_cercevesi, columns=sutunlar, show="headings")
 
         for sutun in sutunlar:
@@ -377,12 +394,14 @@ def ana_ekran_penceresi_ac():
             agac_gorunumu.column(sutun, width=100, anchor="w")
 
         agac_gorunumu.column("ID", width=50, anchor="center")
-        agac_gorunumu.column("Kitap Adı", width=180)
-        agac_gorunumu.column("Yazar", width=120)
+        agac_gorunumu.column("Kitap Adı", width=120) # Genişlik ayarlandı
+        agac_gorunumu.column("Yazar", width=100) # Genişlik ayarlandı
         agac_gorunumu.column("Sayfa Sayısı", width=80, anchor="center")
         agac_gorunumu.column("Basım Markası", width=100)
         agac_gorunumu.column("Kayıt Tarihi", width=100, anchor="center")
         agac_gorunumu.column("Durumu", width=80, anchor="center")
+        agac_gorunumu.column("Ödünç Alan", width=120)
+        agac_gorunumu.column("Teslim Tarihi", width=100, anchor="center")
 
         kaydirma_cubugu = ttk.Scrollbar(agac_cercevesi, orient="vertical", command=agac_gorunumu.yview)
         agac_gorunumu.configure(yscrollcommand=kaydirma_cubugu.set)
@@ -396,7 +415,11 @@ def ana_ekran_penceresi_ac():
             df_kutuphane_verisi = kutuphane_verisi_yukle()
             if not df_kutuphane_verisi.empty:
                 for index, satir in df_kutuphane_verisi.iterrows():
-                    agac_gorunumu.insert("", "end", values=(satir["ID"], satir["Kitap Adı"], satir["Yazar"], satir["Sayfa Sayısı"], satir["Basım Markası"], satir["Kayıt Tarihi"], satir["durumu"]))
+                    agac_gorunumu.insert("", "end", values=(
+                        satir["ID"], satir["Kitap Adı"], satir["Yazar"], satir["Sayfa Sayısı"], 
+                        satir["Basım Markası"], satir["Kayıt Tarihi"], satir["durumu"],
+                        satir.get("Ödünç Alan", ""), satir.get("Teslim Tarihi", "") # Yeni sütunları güvenli al
+                    ))
             else:
                 pass 
         
@@ -405,7 +428,7 @@ def ana_ekran_penceresi_ac():
         form_cercevesi = tk.LabelFrame(ust_cerceve, text="Kitap Bilgileri", bg=ARKA_PLAN_KOYU_GRI, fg=CERCEVE_BASLIK_YAZI_RENGI, padx=10, pady=10) 
         form_cercevesi.pack(fill="x", padx=20, pady=10)
 
-        etiketler = ["Kitap Adı:", "Yazar:", "Sayfa Sayısı:", "Basım Markası:", "Durumu:"]
+        etiketler = ["Kitap Adı:", "Yazar:", "Sayfa Sayısı:", "Basım Markası:", "Durumu:", "Ödünç Alan:", "Teslim Tarihi:"]
         giris_kutulari = {}
         for i, etiket_metni in enumerate(etiketler):
             tk.Label(form_cercevesi, text=etiket_metni, bg=ARKA_PLAN_KOYU_GRI, fg=YAZI_RENGI_BEYAZ).grid(row=i, column=0, sticky="w", pady=2)
@@ -420,180 +443,271 @@ def ana_ekran_penceresi_ac():
                 giris_kutusu.grid(row=i, column=1, sticky="ew", pady=2, padx=5)
                 giris_kutulari[etiket_metni.replace(":", "")] = giris_kutusu
         
-        buton_cercevesi = tk.Frame(ust_cerceve, bg=ARKA_PLAN_KOYU_GRI)
-        buton_cercevesi.pack(fill="x", padx=20, pady=10)
+        button_frame = tk.Frame(ust_cerceve, bg=ARKA_PLAN_KOYU_GRI)
+        button_frame.pack(fill="x", padx=20, pady=10)
 
-        def formu_temizle():
-            for anahtar in giris_kutulari:
-                if isinstance(giris_kutulari[anahtar], ttk.Combobox):
-                    giris_kutulari[anahtar].set("Mevcut")
+        def clear_form():
+            for key in giris_kutulari:
+                if isinstance(giris_kutulari[key], ttk.Combobox):
+                    giris_kutulari[key].set("Mevcut")
                 else:
-                    giris_kutulari[anahtar].delete(0, tk.END)
+                    giris_kutulari[key].delete(0, tk.END)
 
-        def kitap_ekle():
-            df_kutuphane_verisi = kutuphane_verisi_yukle()
-            sonraki_id = 1 if df_kutuphane_verisi.empty else df_kutuphane_verisi["ID"].max() + 1
+        def add_book():
+            df_kutuphane = kutuphane_verisi_yukle()
+            next_id = 1 if df_kutuphane.empty else df_kutuphane["ID"].max() + 1
 
-            kitap_adi_girisi = giris_kutulari["Kitap Adı"].get().strip()
-            yazar_girisi = giris_kutulari["Yazar"].get().strip()
-            sayfa_sayisi_girisi = giris_kutulari["Sayfa Sayısı"].get().strip()
-            basim_markasi_girisi = giris_kutulari["Basım Markası"].get().strip()
-            durum_girisi = giris_kutulari["Durumu"].get().strip()
-            kayit_tarihi_girisi = datetime.date.today().strftime("%Y-%m-%d")
+            kitap_adi = giris_kutulari["Kitap Adı"].get().strip()
+            yazar = giris_kutulari["Yazar"].get().strip()
+            sayfa_sayisi = giris_kutulari["Sayfa Sayısı"].get().strip()
+            basim_markasi = giris_kutulari["Basım Markası"].get().strip()
+            durumu = giris_kutulari["Durumu"].get().strip()
+            odunc_alan = giris_kutulari["Ödünç Alan"].get().strip()
+            teslim_tarihi = giris_kutulari["Teslim Tarihi"].get().strip()
+            kayit_tarihi = datetime.date.today().strftime("%Y-%m-%d")
 
-            if not kitap_adi_girisi or not yazar_girisi or not sayfa_sayisi_girisi or not basim_markasi_girisi:
-                messagebox.showwarning("Eksik Bilgi", "Lütfen tüm alanları doldurun.")
+            if not kitap_adi or not yazar or not sayfa_sayisi or not basim_markasi:
+                messagebox.showwarning("Eksik Bilgi", "Lütfen tüm zorunlu alanları doldurun.")
+                return
+            
+            if durumu == "Ödünç Verildi" and (not odunc_alan or not teslim_tarihi):
+                messagebox.showwarning("Eksik Bilgi", "Ödünç verilen kitap için 'Ödünç Alan' ve 'Teslim Tarihi' alanları zorunludur.")
+                return
+            
+            if teslim_tarihi and not validate_date_format(teslim_tarihi):
+                messagebox.showwarning("Geçersiz Tarih Formatı", "Teslim Tarihi formatı YYYY-MM-DD olmalıdır.")
                 return
 
             try:
-                sayfa_sayisi_girisi = int(sayfa_sayisi_girisi)
-                if sayfa_sayisi_girisi <= 0:
+                sayfa_sayisi = int(sayfa_sayisi)
+                if sayfa_sayisi <= 0:
                     raise ValueError
             except ValueError:
                 messagebox.showwarning("Geçersiz Sayfa Sayısı", "Sayfa sayısı pozitif bir sayı olmalıdır.")
                 return
 
-            yeni_kitap_verisi = pd.DataFrame([{
-                "ID": sonraki_id,
-                "Kitap Adı": kitap_adi_girisi,
-                "Yazar": yazar_girisi,
-                "Sayfa Sayısı": sayfa_sayisi_girisi,
-                "Basım Markası": basim_markasi_girisi,
-                "Kayıt Tarihi": kayit_tarihi_girisi,
-                "durumu": durum_girisi
+            new_book = pd.DataFrame([{
+                "ID": next_id,
+                "Kitap Adı": kitap_adi,
+                "Yazar": yazar,
+                "Sayfa Sayısı": sayfa_sayisi,
+                "Basım Markası": basim_markasi,
+                "Kayıt Tarihi": kayit_tarihi,
+                "durumu": durumu,
+                "Ödünç Alan": odunc_alan if durumu == "Ödünç Verildi" else "",
+                "Teslim Tarihi": teslim_tarihi if durumu == "Ödünç Verildi" else ""
             }])
             
-            guncellenmis_df = pd.concat([df_kutuphane_verisi, yeni_kitap_verisi], ignore_index=True)
-            if kutuphane_verisi_kaydet(guncellenmis_df):
+            updated_df = pd.concat([df_kutuphane, new_book], ignore_index=True)
+            if kutuphane_verisi_kaydet(updated_df):
                 messagebox.showinfo("Başarılı", "Kitap başarıyla eklendi.")
                 agac_gorunumunu_yenile()
-                formu_temizle()
+                clear_form()
             else:
                 messagebox.showerror("Hata", "Kitap eklenirken bir sorun oluştu.")
 
-        def kitap_sil():
-            secili_oge = agac_gorunumu.focus()
-            if not secili_oge:
+        def delete_book():
+            selected_item = agac_gorunumu.focus()
+            if not selected_item:
                 messagebox.showwarning("Seçim Yok", "Lütfen silmek istediğiniz kitabı seçin.")
                 return
 
-            onay = messagebox.askyesno("Silme Onayı", "Seçilen kitabı silmek istediğinizden emin misiniz?")
-            if onay:
-                selected_id = agac_gorunumu.item(secili_oge, "values")[0]
-                df_kutuphane_verisi = kutuphane_verisi_yukle()
-                guncellenmis_df = df_kutuphane_verisi[df_kutuphane_verisi["ID"] != selected_id]
-                if kutuphane_verisi_kaydet(guncellenmis_df):
+            confirm = messagebox.askyesno("Silme Onayı", "Seçilen kitabı silmek istediğinizden emin misiniz?")
+            if confirm:
+                # selected_id'yi int'e dönüştür
+                selected_id = int(agac_gorunumu.item(selected_item, "values")[0])
+                df_kutuphane = kutuphane_verisi_yukle()
+                updated_df = df_kutuphane[df_kutuphane["ID"] != selected_id]
+                if kutuphane_verisi_kaydet(updated_df):
                     messagebox.showinfo("Başarılı", "Kitap başarıyla silindi.")
                     agac_gorunumunu_yenile()
                 else:
                     messagebox.showerror("Hata", "Kitap silinirken bir sorun oluştu.")
 
-        def kitap_duzenleme_formu():
-            secili_oge = agac_gorunumu.focus()
-            if not secili_oge:
+        def edit_book_form():
+            selected_item = agac_gorunumu.focus()
+            if not selected_item:
                 messagebox.showwarning("Seçim Yok", "Lütfen düzenlemek istediğiniz kitabı seçin.")
                 return
             
-            degerler = agac_gorunumu.item(secili_oge, "values")
+            values = agac_gorunumu.item(selected_item, "values")
             giris_kutulari["Kitap Adı"].delete(0, tk.END)
-            giris_kutulari["Kitap Adı"].insert(0, degerler[1])
+            giris_kutulari["Kitap Adı"].insert(0, values[1])
             giris_kutulari["Yazar"].delete(0, tk.END)
-            giris_kutulari["Yazar"].insert(0, degerler[2])
+            giris_kutulari["Yazar"].insert(0, values[2])
             giris_kutulari["Sayfa Sayısı"].delete(0, tk.END)
-            giris_kutulari["Sayfa Sayısı"].insert(0, degerler[3])
+            giris_kutulari["Sayfa Sayısı"].insert(0, values[3])
             giris_kutulari["Basım Markası"].delete(0, tk.END)
-            giris_kutulari["Basım Markası"].insert(0, degerler[4])
-            giris_kutulari["Durumu"].set(degerler[6])
+            giris_kutulari["Basım Markası"].insert(0, values[4])
+            giris_kutulari["Durumu"].set(values[6])
+            giris_kutulari["Ödünç Alan"].delete(0, tk.END)
+            giris_kutulari["Ödünç Alan"].insert(0, values[7] if len(values) > 7 else "") # Güvenli erişim
+            giris_kutulari["Teslim Tarihi"].delete(0, tk.END)
+            giris_kutulari["Teslim Tarihi"].insert(0, values[8] if len(values) > 8 else "") # Güvenli erişim
 
-            kitap_duzenle_butonu.config(text="Değişiklikleri Kaydet", command=lambda: duzenlenen_kitabi_kaydet(secili_oge))
-            kitap_ekle_butonu.config(state="disabled")
-            kitap_sil_butonu.config(state="disabled")
+            edit_book_button.config(text="Değişiklikleri Kaydet", command=lambda: save_edited_book(selected_item))
+            add_book_button.config(state="disabled")
+            delete_book_button.config(state="disabled")
 
-        def duzenlenen_kitabi_kaydet(secili_oge):
-            secili_id = agac_gorunumu.item(secili_oge, "values")[0]
-            df_kutuphane_verisi = kutuphane_verisi_yukle()
+        def save_edited_book(selected_item):
+            # selected_id'yi int'e dönüştür
+            selected_id = int(agac_gorunumu.item(selected_item, "values")[0])
+            df_kutuphane = kutuphane_verisi_yukle()
 
-            kitap_adi_girisi = giris_kutulari["Kitap Adı"].get().strip()
-            yazar_girisi = giris_kutulari["Yazar"].get().strip()
-            sayfa_sayisi_girisi = giris_kutulari["Sayfa Sayısı"].get().strip()
-            basim_markasi_girisi = giris_kutulari["Basım Markası"].get().strip()
-            durum_girisi = giris_kutulari["Durumu"].get().strip()
+            kitap_adi = giris_kutulari["Kitap Adı"].get().strip()
+            yazar = giris_kutulari["Yazar"].get().strip()
+            sayfa_sayisi = giris_kutulari["Sayfa Sayısı"].get().strip()
+            basim_markasi = giris_kutulari["Basım Markası"].get().strip()
+            durumu = giris_kutulari["Durumu"].get().strip()
+            odunc_alan = giris_kutulari["Ödünç Alan"].get().strip()
+            teslim_tarihi = giris_kutulari["Teslim Tarihi"].get().strip()
 
-            if not kitap_adi_girisi or not yazar_girisi or not sayfa_sayisi_girisi or not basim_markasi_girisi:
-                messagebox.showwarning("Eksik Bilgi", "Lütfen tüm alanları doldurun.")
+            if not kitap_adi or not yazar or not sayfa_sayisi or not basim_markasi:
+                messagebox.showwarning("Eksik Bilgi", "Lütfen tüm zorunlu alanları doldurun.")
+                return
+            
+            if durumu == "Ödünç Verildi" and (not odunc_alan or not teslim_tarihi):
+                messagebox.showwarning("Eksik Bilgi", "Ödünç verilen kitap için 'Ödünç Alan' ve 'Teslim Tarihi' alanları zorunludur.")
+                return
+
+            if teslim_tarihi and not validate_date_format(teslim_tarihi):
+                messagebox.showwarning("Geçersiz Tarih Formatı", "Teslim Tarihi formatı YYYY-MM-DD olmalıdır.")
                 return
 
             try:
-                sayfa_sayisi_girisi = int(sayfa_sayisi_girisi)
-                if sayfa_sayisi_girisi <= 0:
+                sayfa_sayisi = int(sayfa_sayisi)
+                if sayfa_sayisi <= 0:
                     raise ValueError
             except ValueError:
                 messagebox.showwarning("Geçersiz Sayfa Sayısı", "Sayfa sayısı pozitif bir sayı olmalıdır.")
                 return
 
-            guncellenecek_indeks = df_kutuphane_verisi[df_kutuphane_verisi["ID"] == secili_id].index
-            if not guncellenecek_indeks.empty:
-                df_kutuphane_verisi.loc[guncellenecek_indeks, "Kitap Adı"] = kitap_adi_girisi
-                df_kutuphane_verisi.loc[guncellenecek_indeks, "Yazar"] = yazar_girisi
-                df_kutuphane_verisi.loc[guncellenecek_indeks, "Sayfa Sayısı"] = sayfa_sayisi_girisi
-                df_kutuphane_verisi.loc[guncellenecek_indeks, "Basım Markası"] = basim_markasi_girisi
-                df_kutuphane_verisi.loc[guncellenecek_indeks, "durumu"] = durum_girisi
+            idx_to_update = df_kutuphane[df_kutuphane["ID"] == selected_id].index
+            if not idx_to_update.empty:
+                df_kutuphane.loc[idx_to_update, "Kitap Adı"] = kitap_adi
+                df_kutuphane.loc[idx_to_update, "Yazar"] = yazar
+                df_kutuphane.loc[idx_to_update, "Sayfa Sayısı"] = sayfa_sayisi
+                df_kutuphane.loc[idx_to_update, "Basım Markası"] = basim_markasi
+                df_kutuphane.loc[idx_to_update, "durumu"] = durumu
+                df_kutuphane.loc[idx_to_update, "Ödünç Alan"] = odunc_alan if durumu == "Ödünç Verildi" else ""
+                df_kutuphane.loc[idx_to_update, "Teslim Tarihi"] = teslim_tarihi if durumu == "Ödünç Verildi" else ""
 
-                if kutuphane_verisi_kaydet(df_kutuphane_verisi):
+                if kutuphane_verisi_kaydet(df_kutuphane):
                     messagebox.showinfo("Başarılı", "Kitap başarıyla güncellendi.")
                     agac_gorunumunu_yenile()
-                    formu_temizle()
-                    kitap_duzenle_butonu.config(text="Kitabı Düzenle", command=kitap_duzenleme_formu)
-                    kitap_ekle_butonu.config(state="normal")
-                    kitap_sil_butonu.config(state="normal")
+                    clear_form()
+                    edit_book_button.config(text="Kitabı Düzenle", command=edit_book_form)
+                    add_book_button.config(state="normal")
+                    delete_book_button.config(state="normal")
                 else:
                     messagebox.showerror("Hata", "Kitap güncellenirken bir sorun oluştu.")
             else:
                 messagebox.showerror("Hata", "Düzenlenecek kitap bulunamadı.")
 
-        def odunc_durumunu_degistir():
-            secili_oge = agac_gorunumu.focus()
-            if not secili_oge:
+        def validate_date_format(date_str):
+            try:
+                datetime.datetime.strptime(date_str, "%Y-%m-%d")
+                return True
+            except ValueError:
+                return False
+
+        def toggle_borrow_status():
+            selected_item = agac_gorunumu.focus()
+            if not selected_item:
                 messagebox.showwarning("Seçim Yok", "Lütfen durumunu değiştirmek istediğiniz kitabı seçin.")
                 return
 
-            secili_id = agac_gorunumu.item(secili_oge, "values")[0]
-            df_kutuphane_verisi = kutuphane_verisi_yukle()
+            # selected_id'yi int'e dönüştür
+            selected_id = int(agac_gorunumu.item(selected_item, "values")[0])
+            df_kutuphane = kutuphane_verisi_yukle()
 
-            guncellenecek_indeks = df_kutuphane_verisi[df_kutuphane_verisi["ID"] == secili_id].index
-            if not guncellenecek_indeks.empty:
-                mevcut_durum = df_kutuphane_verisi.loc[guncellenecek_indeks, "durumu"].iloc[0]
-                yeni_durum = "Ödünç Verildi" if mevcut_durum == "Mevcut" else "Mevcut"
+            idx_to_update = df_kutuphane[df_kutuphane["ID"] == selected_id].index
+            if not idx_to_update.empty:
+                current_status = df_kutuphane.loc[idx_to_update, "durumu"].iloc[0]
                 
-                df_kutuphane_verisi.loc[guncellenecek_indeks, "durumu"] = yeni_durum
-                
-                if kutuphane_verisi_kaydet(df_kutuphane_verisi):
-                    messagebox.showinfo("Başarılı", f"Kitap durumu '{yeni_durum}' olarak güncellendi.")
-                    agac_gorunumunu_yenile()
-                else:
-                    messagebox.showerror("Hata", "Kitap durumu güncellenirken bir sorun oluştu.")
+                if current_status == "Mevcut":
+                    # Kitap ödünç verilecek, bilgi al
+                    borrow_dialog = tk.Toplevel(ust_cerceve)
+                    borrow_dialog.title("Ödünç Bilgileri Girin")
+                    borrow_dialog.transient(ust_cerceve.winfo_toplevel()) # Ana pencereye bağla
+                    borrow_dialog.grab_set() # Pencereyi modal yap
+                    
+                    tk.Label(borrow_dialog, text="Ödünç Alan:").grid(row=0, column=0, padx=5, pady=5)
+                    borrower_entry = tk.Entry(borrow_dialog)
+                    borrower_entry.grid(row=0, column=1, padx=5, pady=5)
+
+                    tk.Label(borrow_dialog, text="Teslim Tarihi (YYYY-MM-DD):").grid(row=1, column=0, padx=5, pady=5)
+                    return_date_entry = tk.Entry(borrow_dialog)
+                    return_date_entry.grid(row=1, column=1, padx=5, pady=5)
+
+                    def save_borrow_info():
+                        borrower_name = borrower_entry.get().strip()
+                        return_date = return_date_entry.get().strip()
+
+                        if not borrower_name or not return_date:
+                            messagebox.showwarning("Eksik Bilgi", "Lütfen ödünç alan ve teslim tarihi bilgilerini doldurun.", parent=borrow_dialog)
+                            return
+                        
+                        if not validate_date_format(return_date):
+                            messagebox.showwarning("Geçersiz Tarih Formatı", "Teslim Tarihi formatı YYYY-MM-DD olmalıdır.", parent=borrow_dialog)
+                            return
+                        
+                        df_kutuphane.loc[idx_to_update, "durumu"] = "Ödünç Verildi"
+                        df_kutuphane.loc[idx_to_update, "Ödünç Alan"] = borrower_name
+                        df_kutuphane.loc[idx_to_update, "Teslim Tarihi"] = return_date
+
+                        if kutuphane_verisi_kaydet(df_kutuphane):
+                            messagebox.showinfo("Başarılı", "Kitap başarıyla ödünç verildi.")
+                            borrow_dialog.destroy()
+                            icerigi_goster("Kitap Listesi") # Kitap listesini yenile
+                            icerigi_goster("Ödünç Kitaplar") # Ödünç kitaplar listesini yenile
+                            icerigi_goster("Hatırlatıcılar") # Hatırlatıcılar listesini yenile
+                        else:
+                            messagebox.showerror("Hata", "Kitap ödünç verilirken bir sorun oluştu.")
+                            borrow_dialog.destroy()
+
+                    def cancel_borrow_info():
+                        borrow_dialog.destroy()
+
+                    tk.Button(borrow_dialog, text="Kaydet", command=save_borrow_info).grid(row=2, column=0, pady=10)
+                    tk.Button(borrow_dialog, text="İptal", command=cancel_borrow_info).grid(row=2, column=1, pady=10)
+
+                else: # current_status == "Ödünç Verildi" (Kitap iade edilecek)
+                    confirm_return = messagebox.askyesno("İade Onayı", "Kitabı iade etmek istediğinizden emin misiniz? Ödünç bilgileri temizlenecektir.")
+                    if confirm_return:
+                        df_kutuphane.loc[idx_to_update, "durumu"] = "Mevcut"
+                        df_kutuphane.loc[idx_to_update, "Ödünç Alan"] = ""
+                        df_kutuphane.loc[idx_to_update, "Teslim Tarihi"] = ""
+                        
+                        if kutuphane_verisi_kaydet(df_kutuphane):
+                            messagebox.showinfo("Başarılı", "Kitap başarıyla iade alındı.")
+                            icerigi_goster("Kitap Listesi") # Kitap listesini yenile
+                            icerigi_goster("Ödünç Kitaplar") # Ödünç kitaplar listesini yenile
+                            icerigi_goster("Hatırlatıcılar") # Hatırlatıcılar listesini yenile
+                        else:
+                            messagebox.showerror("Hata", "Kitap iade edilirken bir sorun oluştu.")
             else:
                 messagebox.showerror("Hata", "Kitap bulunamadı.")
 
-        kitap_ekle_butonu = tk.Button(buton_cercevesi, text="Kitap Ekle", command=kitap_ekle,
+        add_book_button = tk.Button(button_frame, text="Kitap Ekle", command=add_book,
                                     bg=ARKA_PLAN_ORTA_GRI, fg=YAZI_RENGI_BEYAZ, activebackground=BUTON_AKTIF_ARKA_PLAN, activeforeground=YAZI_RENGI_BEYAZ, relief="flat")
-        kitap_ekle_butonu.pack(side="left", padx=5, pady=5)
+        add_book_button.pack(side="left", padx=5, pady=5)
 
-        kitap_duzenle_butonu = tk.Button(buton_cercevesi, text="Kitabı Düzenle", command=kitap_duzenleme_formu,
+        edit_book_button = tk.Button(button_frame, text="Kitabı Düzenle", command=edit_book_form,
                                      bg=ARKA_PLAN_ORTA_GRI, fg=YAZI_RENGI_BEYAZ, activebackground=BUTON_AKTIF_ARKA_PLAN, activeforeground=YAZI_RENGI_BEYAZ, relief="flat")
-        kitap_duzenle_butonu.pack(side="left", padx=5, pady=5)
+        edit_book_button.pack(side="left", padx=5, pady=5)
 
-        kitap_sil_butonu = tk.Button(buton_cercevesi, text="Kitabı Sil", command=kitap_sil,
+        delete_book_button = tk.Button(button_frame, text="Kitabı Sil", command=delete_book,
                                        bg=ARKA_PLAN_ORTA_GRI, fg=YAZI_RENGI_BEYAZ, activebackground=BUTON_AKTIF_ARKA_PLAN, activeforeground=YAZI_RENGI_BEYAZ, relief="flat")
-        kitap_sil_butonu.pack(side="left", padx=5, pady=5)
+        delete_book_button.pack(side="left", padx=5, pady=5)
 
-        odunc_iade_butonu = tk.Button(buton_cercevesi, text="Durumu Değiştir (Ödünç/Mevcut)", command=odunc_durumunu_degistir,
+        borrow_return_button = tk.Button(button_frame, text="Durumu Değiştir (Ödünç/Mevcut)", command=toggle_borrow_status,
                                          bg=ARKA_PLAN_ORTA_GRI, fg=YAZI_RENGI_BEYAZ, activebackground=BUTON_AKTIF_ARKA_PLAN, activeforeground=YAZI_RENGI_BEYAZ, relief="flat")
-        odunc_iade_butonu.pack(side="left", padx=5, pady=5)
+        borrow_return_button.pack(side="left", padx=5, pady=5)
 
-        temizle_butonu = tk.Button(buton_cercevesi, text="Formu Temizle", command=formu_temizle,
+        clear_button = tk.Button(button_frame, text="Formu Temizle", command=clear_form,
                                  bg=ARKA_PLAN_ORTA_GRI, fg=YAZI_RENGI_BEYAZ, activebackground=BUTON_AKTIF_ARKA_PLAN, activeforeground=YAZI_RENGI_BEYAZ, relief="flat")
-        temizle_butonu.pack(side="left", padx=5, pady=5)
+        clear_button.pack(side="left", padx=5, pady=5)
 
     # --- Ödünç Kitaplar İçeriği Oluşturma Fonksiyonu ---
     def odunc_kitaplar_icerigi_olustur(ust_cerceve):
@@ -605,7 +719,7 @@ def ana_ekran_penceresi_ac():
         agac_cercevesi = tk.Frame(ust_cerceve, bg=ARKA_PLAN_KOYU_GRI)
         agac_cercevesi.pack(fill="both", expand=True, padx=20, pady=10)
 
-        sutunlar = ("ID", "Kitap Adı", "Yazar", "Sayfa Sayısı", "Basım Markası", "Kayıt Tarihi", "Durumu")
+        sutunlar = ("ID", "Kitap Adı", "Yazar", "Sayfa Sayısı", "Basım Markası", "Kayıt Tarihi", "Durumu", "Ödünç Alan", "Teslim Tarihi")
         agac_gorunumu = ttk.Treeview(agac_cercevesi, columns=sutunlar, show="headings")
 
         for sutun in sutunlar:
@@ -613,19 +727,25 @@ def ana_ekran_penceresi_ac():
             agac_gorunumu.column(sutun, width=100, anchor="w")
 
         agac_gorunumu.column("ID", width=50, anchor="center")
-        agac_gorunumu.column("Kitap Adı", width=200)
-        agac_gorunumu.column("Yazar", width=150)
+        agac_gorunumu.column("Kitap Adı", width=120)
+        agac_gorunumu.column("Yazar", width=100)
         agac_gorunumu.column("Sayfa Sayısı", width=80, anchor="center")
-        agac_gorunumu.column("Basım Markası", width=120)
+        agac_gorunumu.column("Basım Markası", width=100)
         agac_gorunumu.column("Kayıt Tarihi", width=100, anchor="center")
         agac_gorunumu.column("Durumu", width=80, anchor="center")
+        agac_gorunumu.column("Ödünç Alan", width=120)
+        agac_gorunumu.column("Teslim Tarihi", width=100, anchor="center")
 
         df_kutuphane_verisi = kutuphane_verisi_yukle()
         odunc_kitaplar_verisi = df_kutuphane_verisi[df_kutuphane_verisi["durumu"] == "Ödünç Verildi"]
 
         if not odunc_kitaplar_verisi.empty:
             for index, satir in odunc_kitaplar_verisi.iterrows():
-                agac_gorunumu.insert("", "end", values=(satir["ID"], satir["Kitap Adı"], satir["Yazar"], satir["Sayfa Sayısı"], satir["Basım Markası"], satir["Kayıt Tarihi"], satir["durumu"]))
+                agac_gorunumu.insert("", "end", values=(
+                    satir["ID"], satir["Kitap Adı"], satir["Yazar"], satir["Sayfa Sayısı"], 
+                    satir["Basım Markası"], satir["Kayıt Tarihi"], satir["durumu"],
+                    satir.get("Ödünç Alan", ""), satir.get("Teslim Tarihi", "")
+                ))
         else:
             tk.Label(agac_cercevesi, text="Henüz ödünç verilmiş kitap bulunmamaktadır.", bg=ARKA_PLAN_KOYU_GRI, fg=YAZI_RENGI_BEYAZ).pack(pady=20) 
 
@@ -634,6 +754,90 @@ def ana_ekran_penceresi_ac():
 
         kaydirma_cubugu.pack(side="right", fill="y")
         agac_gorunumu.pack(side="left", fill="both", expand=True)
+
+    # --- Hatırlatıcılar İçeriği Oluşturma Fonksiyonu ---
+    def hatirlaticilar_icerigi_olustur(ust_cerceve):
+        for widget in ust_cerceve.winfo_children():
+            widget.destroy()
+
+        tk.Label(ust_cerceve, text="Kitap Teslim Hatırlatıcıları", font=("Arial", 16, "bold"), bg=ARKA_PLAN_KOYU_GRI, fg=YAZI_RENGI_BEYAZ, pady=10).pack(pady=(20, 10))
+
+        agac_cercevesi = tk.Frame(ust_cerceve, bg=ARKA_PLAN_KOYU_GRI)
+        agac_cercevesi.pack(fill="both", expand=True, padx=20, pady=10)
+
+        sutunlar = ("ID", "Kitap Adı", "Ödünç Alan", "Teslim Tarihi", "Kalan Gün/Durum")
+        agac_gorunumu = ttk.Treeview(agac_cercevesi, columns=sutunlar, show="headings")
+
+        for sutun in sutunlar:
+            agac_gorunumu.heading(sutun, text=sutun, anchor="w")
+            agac_gorunumu.column(sutun, width=100, anchor="w")
+
+        agac_gorunumu.column("ID", width=50, anchor="center")
+        agac_gorunumu.column("Kitap Adı", width=150)
+        agac_gorunumu.column("Ödünç Alan", width=120)
+        agac_gorunumu.column("Teslim Tarihi", width=100, anchor="center")
+        agac_gorunumu.column("Kalan Gün/Durum", width=150, anchor="center")
+
+        def hatirlatici_listesini_yenile():
+            for oge in agac_gorunumu.get_children():
+                agac_gorunumu.delete(oge)
+            
+            df_kutuphane_verisi = kutuphane_verisi_yukle()
+            odunc_kitaplar_verisi = df_kutuphane_verisi[df_kutuphane_verisi["durumu"] == "Ödünç Verildi"]
+            
+            bugun = datetime.date.today()
+
+            if not odunc_kitaplar_verisi.empty:
+                for index, satir in odunc_kitaplar_verisi.iterrows():
+                    teslim_tarihi_str = satir.get("Teslim Tarihi", "")
+                    kalan_gun_durum = ""
+                    if teslim_tarihi_str:
+                        try:
+                            teslim_tarihi_obj = datetime.datetime.strptime(str(teslim_tarihi_str), "%Y-%m-%d").date()
+                            gun_farki = (teslim_tarihi_obj - bugun).days
+
+                            if gun_farki < 0:
+                                kalan_gun_durum = f"{-gun_farki} gün gecikmiş"
+                                tag = 'gecikmis' # Gecikmiş kitaplar için tag
+                            elif gun_farki == 0:
+                                kalan_gun_durum = "Bugün teslim"
+                                tag = 'bugun' # Bugün teslim edilecekler için tag
+                            else:
+                                kalan_gun_durum = f"{gun_farki} gün kaldı"
+                                tag = 'normal'
+                        except ValueError:
+                            kalan_gun_durum = "Geçersiz Tarih"
+                            tag = 'normal'
+                    else:
+                        kalan_gun_durum = "Tarih Belirtilmemiş"
+                        tag = 'normal'
+
+                    agac_gorunumu.insert("", "end", values=(
+                        satir["ID"], satir["Kitap Adı"], satir.get("Ödünç Alan", ""), 
+                        teslim_tarihi_str, kalan_gun_durum
+                    ), tags=(tag,))
+            else:
+                tk.Label(agac_cercevesi, text="Henüz ödünç verilmiş kitap bulunmamaktadır.", bg=ARKA_PLAN_KOYU_GRI, fg=YAZI_RENGI_BEYAZ).pack(pady=20)
+        
+        # Gecikmiş kitaplar için stil (kırmızı yazı) - Düzeltildi: stil.tag_configure yerine agac_gorunumu.tag_configure
+        agac_gorunumu.tag_configure('gecikmis', foreground='red', font=('Arial', 10, 'bold'))
+        agac_gorunumu.tag_configure('bugun', foreground='orange', font=('Arial', 10, 'bold'))
+        agac_gorunumu.tag_configure('normal', foreground=YAZI_RENGI_BEYAZ)
+
+        hatirlatici_listesini_yenile()
+
+        kaydirma_cubugu = ttk.Scrollbar(agac_cercevesi, orient="vertical", command=agac_gorunumu.yview)
+        agac_gorunumu.configure(yscrollcommand=kaydirma_cubugu.set)
+
+        kaydirma_cubugu.pack(side="right", fill="y")
+        agac_gorunumu.pack(side="left", fill="both", expand=True)
+
+        # Listeyi yenile butonu
+        refresh_button_frame = tk.Frame(ust_cerceve, bg=ARKA_PLAN_KOYU_GRI)
+        refresh_button_frame.pack(pady=10)
+        tk.Button(refresh_button_frame, text="Listeyi Yenile", command=hatirlatici_listesini_yenile,
+                  bg=ARKA_PLAN_ORTA_GRI, fg=YAZI_RENGI_BEYAZ, activebackground=BUTON_AKTIF_ARKA_PLAN, activeforeground=YAZI_RENGI_BEYAZ, relief="flat").pack()
+
 
     # --- Ayarlar İçeriği Oluşturma Fonksiyonu ---
     def ayarlar_icerigi_olustur(ust_cerceve):
@@ -691,7 +895,7 @@ def ana_ekran_penceresi_ac():
 
         def renk_sec(anahtar, giris_kutusu_widgeti, onizleme_widgeti):
             color_code = colorchooser.askcolor(title=f"{renk_etiketleri[anahtar]} Seç")
-            if color_code[1]: # Eğer bir renk seçildiyse (None değilse)
+            if color_code[1]: # Eğer bir renk seçildyse (None değilse)
                 giris_kutusu_widgeti.delete(0, tk.END)
                 giris_kutusu_widgeti.insert(0, color_code[1])
                 if onizleme_widgeti: # Eğer önizleme widget'ı varsa güncelle
@@ -816,8 +1020,9 @@ def ana_ekran_penceresi_ac():
         elif icerik_adi == "Kitap Listesi":
             kitap_yonetimi_icerigi_olustur(ana_icerik_cercevesi)
         elif icerik_adi == "Ödünç Kitaplar":
-            # Düzeltme: 'ana_icerceivesi' yerine 'ana_icerik_cercevesi' kullanılmalı
             odunc_kitaplar_icerigi_olustur(ana_icerik_cercevesi)
+        elif icerik_adi == "Hatırlatıcılar": # Yeni hatırlatıcılar içeriği
+            hatirlaticilar_icerigi_olustur(ana_icerik_cercevesi)
         elif icerik_adi == "Ayarlar":
             ayarlar_icerigi_olustur(ana_icerik_cercevesi)
 
@@ -832,6 +1037,10 @@ def ana_ekran_penceresi_ac():
     menu_oge3 = tk.Button(menu_cercevesi, text="Ödünç Kitaplar", command=lambda: icerigi_goster("Ödünç Kitaplar"), anchor="w", padx=10, pady=5,
                            bg=ARKA_PLAN_KOYU_GRI, fg=YAZI_RENGI_BEYAZ, activebackground=BUTON_AKTIF_ARKA_PLAN, activeforeground=YAZI_RENGI_BEYAZ, relief="flat")
     menu_oge3.pack(fill="x", pady=5)
+
+    menu_oge5 = tk.Button(menu_cercevesi, text="Hatırlatıcılar", command=lambda: icerigi_goster("Hatırlatıcılar"), anchor="w", padx=10, pady=5,
+                           bg=ARKA_PLAN_KOYU_GRI, fg=YAZI_RENGI_BEYAZ, activebackground=BUTON_AKTIF_ARKA_PLAN, activeforeground=YAZI_RENGI_BEYAZ, relief="flat")
+    menu_oge5.pack(fill="x", pady=5)
 
     menu_oge4 = tk.Button(menu_cercevesi, text="Ayarlar", command=lambda: icerigi_goster("Ayarlar"), anchor="w", padx=10, pady=5,
                            bg=ARKA_PLAN_KOYU_GRI, fg=YAZI_RENGI_BEYAZ, activebackground=BUTON_AKTIF_ARKA_PLAN, activeforeground=YAZI_RENGI_BEYAZ, relief="flat")
